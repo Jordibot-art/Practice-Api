@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Urban Legends Shooter</title>
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: url('back.png') no-repeat center center fixed;
+    background-size: cover;
+    font-family: sans-serif;
+}
+#game {
+    position: relative;
+    width: 800px;
+    height: 500px;
+    margin: 50px auto;
+    border: 2px solid white;
+    overflow: hidden;
+    background: rgba(0,0,0,0.5);
+    cursor: crosshair;
+}
+#player {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    background: url('char.png') no-repeat center;
+    background-size: contain;
+    bottom: 0;
+    left: 50px;
+}
+.monster {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+.bullet {
+    position: absolute;
+    width: 10px;
+    height: 4px;
+    background: yellow;
+}
+#health {
+    width: 200px;
+    height: 20px;
+    background: red;
+    margin: 10px auto;
+}
+#score {
+    text-align: center;
+    font-size: 18px;
+    margin-top: 10px;
+    color: white;
+}
+</style>
+</head>
+<body>
+<div id="health"></div>
+<div id="game">
+    <div id="player"></div>
+</div>
+<div id="score">Score: 0</div>
+
+<script>
+const game = document.getElementById('game');
+const player = document.getElementById('player');
+const healthBar = document.getElementById('health');
+const scoreDisplay = document.getElementById('score');
+
+const gameWidth = game.clientWidth;
+const gameHeight = game.clientHeight;
+
+let playerPos = { x: 50, y: 0 };
+let health = 100;
+let score = 0;
+let monsters = [];
+let bullets = [];
+
+const monsterTypes = [
+    {name: 'Aswang', img: 'aswang.png', speed: 1},
+    {name: 'Manananggal', img: 'manana.png', speed: 1.2},
+    {name: 'Tikbalang', img: 'tikba.png', speed: 0.8}
+];
+
+const keys = {};
+let isJumping = false;
+let jumpVelocity = 0;
+
+// Player input
+document.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+document.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+// Shoot with mouse
+game.addEventListener('mousedown', shoot);
+
+// Move player
+function movePlayer() {
+    if(keys['a'] && playerPos.x > 0) playerPos.x -= 5;
+    if(keys['d'] && playerPos.x < (gameWidth - 50)) playerPos.x += 5;
+
+    if(keys['w'] && !isJumping){
+        jumpVelocity = 12;
+        isJumping = true;
+    }
+    if(isJumping){
+        playerPos.y += jumpVelocity;
+        jumpVelocity -= 0.7; // gravity
+        if(playerPos.y <= 0){
+            playerPos.y = 0;
+            isJumping = false;
+        }
+    }
+
+    player.style.bottom = playerPos.y + 'px';
+    player.style.left = playerPos.x + 'px';
+}
+
+// Spawn monster at bottom-right
+function spawnMonster() {
+    const type = monsterTypes[Math.floor(Math.random() * monsterTypes.length)];
+    const monster = document.createElement('div');
+    monster.className = 'monster';
+    monster.style.backgroundImage = `url(${type.img})`;
+    monster.dataset.speed = type.speed;
+    monster.dataset.width = 100;
+    monster.dataset.height = 100;
+    monster.style.left = (gameWidth - 100) + 'px';
+    monster.style.bottom = '0px';
+    game.appendChild(monster);
+    monsters.push(monster);
+}
+
+// Update monsters
+function updateMonsters() {
+    monsters.forEach((monster) => {
+        let x = parseFloat(monster.style.left);
+        let y = parseFloat(monster.style.bottom);
+        const speed = parseFloat(monster.dataset.speed);
+        const width = parseFloat(monster.dataset.width);
+        const height = parseFloat(monster.dataset.height);
+
+        if(x > playerPos.x) x -= speed;
+        monster.style.left = x + 'px';
+
+        // Collision with player
+        if (playerPos.x < x + width &&
+            playerPos.x + 50 > x &&
+            playerPos.y < y + height &&
+            playerPos.y + 50 > y) {
+            health -= 1;
+            healthBar.style.width = health * 2 + 'px';
+            if(health <= 0){
+                alert('Game Over! Score: ' + score);
+                location.reload();
+            }
+        }
+    });
+}
+
+// Shoot bullets
+function shoot(){
+    const bullet = document.createElement('div');
+    bullet.className = 'bullet';
+    bullet.style.left = (playerPos.x + 45) + 'px';
+    bullet.style.bottom = (playerPos.y + 25) + 'px'; // use bottom instead of top
+    bullet.dataset.dx = 10;
+    bullets.push(bullet);
+    game.appendChild(bullet);
+}
+
+// Update bullets
+function updateBullets(){
+    bullets.forEach((bullet, bIndex) => {
+        let x = parseFloat(bullet.style.left);
+        let y = parseFloat(bullet.style.bottom); // use bottom
+        x += parseFloat(bullet.dataset.dx);
+        bullet.style.left = x + 'px';
+        bullet.style.bottom = y + 'px'; // update bottom
+
+        if(x > gameWidth){
+            game.removeChild(bullet);
+            bullets.splice(bIndex,1);
+            return;
+        }
+
+        // Collision with monsters
+        monsters.forEach((monster, mIndex) => {
+            let mx = parseFloat(monster.style.left);
+            let my = parseFloat(monster.style.bottom);
+            const mWidth = parseFloat(monster.dataset.width);
+            const mHeight = parseFloat(monster.dataset.height);
+            const bulletWidth = 10;
+            const bulletHeight = 4;
+
+            if (x < mx + mWidth &&
+                x + bulletWidth > mx &&
+                y < my + mHeight &&
+                y + bulletHeight > my) {
+                game.removeChild(monster);
+                monsters.splice(mIndex,1);
+                game.removeChild(bullet);
+                bullets.splice(bIndex,1);
+                score += 10;
+                scoreDisplay.innerText = 'Score: ' + score;
+            }
+        });
+    });
+}
+
+// Game loop
+function gameLoop(){
+    movePlayer();
+    updateMonsters();
+    updateBullets();
+    requestAnimationFrame(gameLoop);
+}
+
+// Start game
+setInterval(spawnMonster, 2000);
+gameLoop();
+</script>
+</body>
+</html>
